@@ -1,103 +1,197 @@
-# QR Desktop Assistant
+# 🔍 QR Desktop Assistant
 
-A Windows desktop app that reads QR codes **from your screen or from image files**. No webcam needed.
-It shows what a code contains, warns about suspicious links, and does nothing until you confirm.
+![Java 21](https://img.shields.io/badge/Java-21-orange)
+![JavaFX 21](https://img.shields.io/badge/JavaFX-21-blue)
+![Windows](https://img.shields.io/badge/platform-Windows-0078D6)
+![Tests](https://img.shields.io/badge/tests-153%20passing-brightgreen)
+![Offline](https://img.shields.io/badge/network-offline%20by%20default-lightgrey)
 
-Press **Ctrl+Shift+Q** anywhere. If there's exactly one QR code on the screen, you see its preview
-straight away. If there are none or several, the screen freezes and you click the code or drag a box around it.
+> **A QR code is a stranger handing you a link with the label torn off.**
+> This app reads it for you, shows you what's *really* inside, and does nothing until you say so.
 
-## Why it's built this way
+A Windows desktop app that scans QR codes **straight from your screen** or **from image files**.
+No phone, no webcam, no cloud.
 
-A QR code is **untrusted input**: whoever printed it chose every character. So:
+---
 
-- **Nothing opens automatically.** Every action waits for the preview → click flow.
-  Enter and Esc both mean *Cancel*, and action buttons ignore clicks for the first 400 ms.
-- **Links are checked offline**: wrong scheme, `user@` tricks, raw or disguised IP addresses,
-  local-network targets, look-alike international names (`xn--`), short links, odd ports,
-  sensitive parameters, extreme length. The result is a list of facts, **never "safe"**:
-  the wording is "no problems found by basic checks".
-- **Two locks before a browser opens**: the checks must allow it (`UrlReport.canOpen`), and
-  `DesktopService` re-checks `http`/`https` on its own, right before opening.
-- **Hidden characters are revealed** (`⟦U+202E⟧`), so text can't disguise itself.
-- **Secrets are masked**: Wi-Fi passwords and 2FA secrets show as `••••••••` until you click *Show*.
-- **Offline by default.** The only network use is the optional *Check where this goes* button,
-  which follows redirects one hop at a time (max 5, no cookies, local addresses refused,
-  even after DNS). *Open* still opens the original address.
-- **Nothing is uploaded, and QR contents are never logged**, only error *types*.
+## ⚡ In 3 seconds
 
-## Requirements
+1. A QR code is on your screen: a slide, a PDF, a WhatsApp Web chat, a payment page.
+2. Press **`Ctrl` + `Shift` + `Q`**, wherever you are.
+3. A preview tells you what it is, where it *really* goes, and anything that looks off.
 
-- Windows 10 or 11
-- JDK 21 (e.g. Eclipse Temurin 21 or Oracle JDK 21)
-- Maven 3.9+, or IntelliJ IDEA (it includes Maven)
+```
+┌────────────────────────────────────────────────────────────┐
+│ Web address                                                │
+│                                                            │
+│ Real site                                                  │
+│ xn--pypal-4ve.com              ◄── where it REALLY goes    │
+│                                                            │
+│ Looks like:    pаypal.com      ◄── the disguise            │
+│ Full address:  https://pаypal.com/login                    │
+│                                                            │
+│ Address checks                                             │
+│ ⛔ The part "pаypal" mixes letters from different          │
+│    alphabets (for example English and Cyrillic)…           │
+│ ⚠  The site name uses international letters…               │
+│ ✓  Uses HTTPS: the connection is encrypted.                │
+│ Basic checks found warning signs. Read them before you     │
+│ continue.                                                  │
+│                                                            │
+│                       [ Open in browser ] [ Copy address ] │
+│ [ Not this one? Select area ] [ Check where this goes ]    │
+│                                                 [ Cancel ] │
+└────────────────────────────────────────────────────────────┘
+```
+*(That "а" is Cyrillic, not Latin. Spot the difference? Your eyes can't. The app can.)*
 
-## Run
+---
+
+## 🎯 Smart scan
+
+| On screen | What happens |
+|---|---|
+| **Exactly one** code | Straight to the preview, plus a *"Not this one? Select area"* escape hatch |
+| **Several** codes | The screen freezes and each code gets an outline. Click the one you want |
+| **None** found | Drag a box around it: tiny or blurry codes get a second, closer look |
+| An **image file** | PNG, JPEG, BMP, GIF, TIFF. Several codes give you a numbered list to pick from |
+
+It captures **only the monitor your mouse is on**, at full physical resolution, so small codes
+stay sharp on 150% scaled screens. It also reads **inverted** (light-on-dark) codes.
+
+---
+
+## 🛡️ Tricks it catches
+
+QR codes are the perfect phishing delivery: you can't *read* them before you trust them.
+Here's what the app checks, **entirely offline**:
+
+| The trick | Example | What you see |
+|---|---|---|
+| **Look-alike letters** | `pаypal.com` (Cyrillic "а") | Real site shown as `xn--pypal-4ve.com`, plus "mixes letters from different alphabets" |
+| **Fake site before `@`** | `https://google.com@evil.example` | "The address has a hidden "name@" part. The site you would really visit is evil.example" |
+| **Disguised IP address** | `http://0x7f.1/` = `127.0.0.1` | "IP address written in a disguised form" |
+| **Your own router** | `http://192.168.1.1/admin` | "Points to … the local network" |
+| **Hidden characters** | `invoice[U+202E]fdp.exe` shows as `invoiceexe.pdf` | Revealed as `⟦U+202E⟧`, with a banner |
+| **Not even a website** | `javascript:…`, `file:///…` | Treated as text. **Never** openable |
+| **Short links** | `bit.ly/…` | Flagged. Optional *"Check where this goes"* |
+| **Unencrypted** | `http://…` | Allowed, with a warning |
+
+And just as important, what it **never** says: *"safe"*. The best it will say is
+**"no problems found by basic checks"**, because a phishing page can have perfect HTTPS.
+
+---
+
+## 🔐 Built paranoid, on purpose
+
+- **🚫 Nothing opens by itself.** Every action waits for your click. **Enter and Esc both
+  mean Cancel**, and action buttons ignore clicks for the first **400 ms**, so a stray click can't
+  fire one.
+- **🔒 Two locks before your browser opens.** The checks must allow it, *and* a separate gate
+  re-checks `http`/`https` right before opening. One bug can't open both.
+- **🙈 Secrets stay hidden.** Wi-Fi passwords and 2FA secrets show as `••••••••` until you click
+  *Show*. Copying them warns you that other apps can read the clipboard.
+- **📵 Offline by default.** The only network use is the opt-in redirect check: max 5 hops,
+  4-second timeouts, no cookies, nothing downloaded, and local addresses are refused *even after
+  DNS*. And *Open* still opens the **original** link, never the redirect target.
+- **✉️ Email links are rebuilt, not passed on.** A QR `mailto:` can smuggle in `bcc=` or
+  `attach=` fields. The app builds its own link from only what you saw.
+- **💣 Image bombs are defused.** Size is read from the file header *before* decoding:
+  max 12000 px per side and 50 megapixels.
+- **🤐 It never logs what it reads.** Only error *types* (like `ConnectException`), never QR
+  text, URLs or exception messages.
+
+---
+
+## 📦 What it understands
+
+| Content | Example | You can… |
+|---|---|---|
+| 🌐 Web address | `https://example.com` | Open in browser · Copy address · Check where it goes |
+| 📶 Wi-Fi | `WIFI:T:WPA;S:Home;P:secret;;` | Copy network name · Copy password |
+| ✉️ Email | `mailto:…`, `MATMSG:…`, plain address | Write email (opens a draft, never sends) · Copy address |
+| 📞 Phone | `tel:+91 98765 43210` | Copy number |
+| 👤 Contact | vCard, MeCard | Copy text |
+| 📅 Event | `BEGIN:VEVENT…` | Times shown in *your* time zone · Copy text |
+| 🔑 2FA setup | `otpauth://…` | Copy secret (masked, with a warning) |
+| 📝 Anything else | plain text, unreadable data | Copy text |
+
+---
+
+## 🚀 Run it
+
+**You need:** Windows 10/11 · JDK 21 · Maven 3.9+ (or IntelliJ IDEA, which includes it)
 
 ```
 mvn javafx:run
 ```
 
-In IntelliJ: open the project, set the Project SDK to 21, and run `QrAssistantApp`.
+In IntelliJ, set the Project SDK to **21** and run `QrAssistantApp`.
 
-The app lives in the system tray. Closing the window hides it; use **Quit** (window or tray) to exit.
+The app lives in the **system tray**. Closing the window just hides it, and **Ctrl+Shift+Q** keeps
+working. Right-click the tray icon to scan, open the window, or **Quit**.
 
-## Test
+## 🧪 Test it
 
 ```
 mvn test
 ```
 
-The automated tests cover parsing, URL checks, sanitizing, masking, redirects (fake network),
-image files and the whole scan workflow with a fake UI. The things only a person can check
-(real windows, tray, shortcut, HiDPI, browser) are in [docs/MANUAL_TESTS.md](docs/MANUAL_TESTS.md).
+**153 automated tests** cover parsing, every URL check, sanitizing, masking, redirects
+(against a fake internet), image files and **the whole scan flow driven by a fake user**,
+with no windows at all.
 
-## What it recognizes
+What only a human can check (the tray, the hotkey, HiDPI outlines, the real browser) is in
+[`docs/MANUAL_TESTS.md`](docs/MANUAL_TESTS.md).
 
-| Content | Example | Actions offered |
-|---|---|---|
-| Web address | `https://example.com` | Open in browser, Copy address, Check where this goes |
-| Wi-Fi | `WIFI:T:WPA;S:Home;P:secret;;` | Copy network name, Copy password |
-| Email | `mailto:…`, `MATMSG:…`, plain address | Write email, Copy address |
-| Phone | `tel:+91 98765 43210` | Copy number |
-| Contact | vCard, MeCard | Copy text |
-| Calendar event | `BEGIN:VEVENT…` | Copy text |
-| 2FA setup | `otpauth://…` | Copy secret (masked, with a warning) |
-| Anything else | text, unreadable data | Copy text |
+---
 
-Image files: PNG, JPEG, BMP, GIF, TIFF (up to 12000 px per side and 50 megapixels).
-WebP, HEIC, AVIF and SVG are recognized and explained, but not decoded.
+## 🏗️ Under the hood
 
-## How the code is organized
-
-Package root: `com.qrassistant`
+```
+ Ctrl+Shift+Q / tray / button
+            │  (any thread: just *requests* a scan)
+            ▼
+     ┌──────────────┐   one worker thread, one scan at a time
+     │ ScanWorkflow │──────────────────────────────────────────┐
+     └──────┬───────┘                                          │
+  capture → scan → recognize → check → actions                 │ UiGateway
+  (screen   (ZXing) (parsers,  (URL    (copy/open/              │ (hops to the
+   or file)         in order)  checks)  email)                  ▼  JavaFX thread)
+                                                     overlay · preview · list
+```
 
 | Package | Job |
 |---|---|
-| `app` | `QrAssistantApp` (start-up, wiring, shutdown) and `ScanWorkflow` (the controller) |
-| `capture` | Screen capture (HiDPI-aware) and image file loading |
-| `scan` | `ZxingQrScanner`: the only class that uses ZXing |
-| `content` (+ `parsers`) | What a code contains: one parser per format, tried in a fixed order |
-| `urlcheck` (+ `checks`) | Offline URL checks, and the opt-in `RedirectResolver` |
-| `action` (+ `actions`) | What you can do with a code: copy, open, write email |
-| `system` | Clipboard, browser/mail (`DesktopService`), global shortcut |
-| `ui` | Windows (main, overlay, preview, code list, tray) and the pure "what to show" models |
+| `app` | Start-up, wiring, shutdown · `ScanWorkflow`, the controller |
+| `capture` | HiDPI screen capture · safe image file loading |
+| `scan` | `ZxingQrScanner`, the *only* class that touches ZXing |
+| `content` | One parser per format, tried in a fixed order (email goes last, on purpose) |
+| `urlcheck` | Ten small offline checks · the opt-in `RedirectResolver` |
+| `action` | Copy, open, write email: one provider per content type |
+| `system` | Clipboard · browser/mail (lock #2) · global shortcut |
+| `ui` | The windows, plus pure "what to show" models that are unit-tested |
 
-**Threads:** all scanning runs on one background worker. The UI is reached only through
-`UiGateway`, which hops to the JavaFX thread and waits. Shortcut presses and tray clicks only
-*request* a scan, and only one scan runs at a time.
+**Design choices worth stealing:**
+- **Sealed interfaces everywhere** (`QrContent`, `OverlayResult`, `PreviewChoice`): add a new
+  content type and the compiler shows you every `switch` that has to handle it.
+- **The UI is an interface.** `ScanWorkflow` never touches a window directly, which is why the
+  whole flow can be tested with a 40-line fake.
+- **Windows don't decide.** They draw a ready-made, already-sanitized model and report a click.
 
-## Tech
+**Stack:** Java 21 · JavaFX 21 · ZXing 3.5.3 · JIntellitype 1.5.6 · JUnit 5 · Maven.
+**No AI**: recognition is deterministic, so the same code always gives the same answer.
 
-Java 21 · JavaFX 21 · ZXing 3.5.3 · JIntellitype 1.5.6 (global shortcut) · JUnit 5 · Maven.
-No AI: recognition is deterministic.
+---
 
-## Known limits
+## ⚠️ Honest limits
 
-- Windows only.
-- If another app already uses Ctrl+Shift+Q, Windows may not report it. The shortcut then
-  silently does nothing; use the tray or the button.
-- The redirect check looks names up before connecting, but the HTTP client looks them up again
-  when it connects. A hostile DNS server could answer differently the second time ("DNS
-  rebinding"). The check makes this harder, not impossible.
-- A site can redirect the app differently from a browser, which is why results say "appeared to".
-- Starting the app twice gives two tray icons, and both try to take the shortcut.
+- **Windows only.**
+- If another app already owns Ctrl+Shift+Q, Windows may not say so. Use the tray instead.
+- The redirect check resolves DNS *before* connecting, but the HTTP client resolves again when
+  it connects. A hostile DNS server could answer differently the second time ("DNS rebinding").
+  The check makes this harder, not impossible.
+- A site can redirect the app differently from a browser, which is why results say *"appeared to"*.
+- Launching it twice gives two tray icons, and both try to take the shortcut.
+
+*Built step by step as a learning project, with every part explainable.*
