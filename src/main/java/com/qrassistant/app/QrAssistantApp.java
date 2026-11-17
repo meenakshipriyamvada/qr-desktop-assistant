@@ -11,6 +11,7 @@ import javafx.application.Platform;
 import javafx.stage.Stage;
 import com.qrassistant.content.ContentRecognizer;
 import java.util.logging.Logger;
+import com.qrassistant.urlcheck.RedirectResolver;
 import com.qrassistant.urlcheck.UrlSafetyChecker;
 import com.qrassistant.system.ClipboardService;
 import com.qrassistant.system.DesktopService;
@@ -62,7 +63,8 @@ public class QrAssistantApp extends Application {
                 new ZxingQrScanner(),
                 new ContentRecognizer(),
                 new UrlSafetyChecker(),
-                new ActionManager(new ClipboardService(), new DesktopService()));
+                new ActionManager(new ClipboardService(), new DesktopService()),
+                new RedirectResolver());
 
         mainWindow.show();
     }

@@ -4,7 +4,6 @@ import com.qrassistant.action.Action;
 
 /**
  * How the preview window ended. "sealed", so the workflow's switch must handle every case.
- * Step 12 adds CheckRedirects.
  */
 public sealed interface PreviewChoice {
 
@@ -14,6 +13,10 @@ public sealed interface PreviewChoice {
 
     /** "Not this one? Select area": go back to the overlay. */
     record SelectArea() implements PreviewChoice {
+    }
+
+    /** "Check where this goes": follow the URL's redirects, then show the preview again with the result. */
+    record CheckRedirects() implements PreviewChoice {
     }
 
     /** The user clicked an action button. The WORKFLOW runs it, not the window. */

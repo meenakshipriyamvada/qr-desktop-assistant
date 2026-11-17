@@ -39,7 +39,7 @@ public class PrivateNetworkCheck implements UrlCheck {
     }
 
     /** The address ranges reserved for "this computer" and private networks. */
-    static boolean isPrivateIpv4(long ip) {
+    public static boolean isPrivateIpv4(long ip) {
         return inRange(ip, "0.0.0.0", 8)          // "this network"
                 || inRange(ip, "10.0.0.0", 8)     // private
                 || inRange(ip, "100.64.0.0", 10)  // shared by internet providers (carrier-grade NAT)

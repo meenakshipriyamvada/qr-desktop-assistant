@@ -14,6 +14,7 @@ import com.qrassistant.ui.PreviewChoice;
 import com.qrassistant.ui.PreviewModel;
 import com.qrassistant.ui.UiGateway;
 import com.qrassistant.content.UrlContent;
+import com.qrassistant.urlcheck.RedirectResolver;
 import com.qrassistant.urlcheck.UrlReport;
 import com.qrassistant.urlcheck.UrlSafetyChecker;
 import java.awt.Rectangle;
@@ -45,6 +46,7 @@ public class ScanWorkflow {
     private final ContentRecognizer contentRecognizer;
     private final UrlSafetyChecker urlSafetyChecker;
     private final ActionManager actionManager;
+    private final RedirectResolver redirectResolver;
     /** One worker thread. "Daemon" = it never keeps the program alive on its own. */
     private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "scan-worker");
@@ -57,13 +59,14 @@ public class ScanWorkflow {
 
     public ScanWorkflow(UiGateway ui, ScreenCapturer screenCapturer, QrScanner qrScanner,
                         ContentRecognizer contentRecognizer, UrlSafetyChecker urlSafetyChecker,
-                        ActionManager actionManager) {
+                        ActionManager actionManager, RedirectResolver redirectResolver) {
         this.ui = ui;
         this.screenCapturer = screenCapturer;
         this.qrScanner = qrScanner;
         this.contentRecognizer = contentRecognizer;
         this.urlSafetyChecker = urlSafetyChecker;
         this.actionManager = actionManager;
+        this.redirectResolver = redirectResolver;
     }
     // --- Entry points: may be called from ANY thread; they only hand the job to the worker ---
 
@@ -171,18 +174,29 @@ public class ScanWorkflow {
         List<Action> actions = actionManager.actionsFor(content, report);
         PreviewModel model = PreviewModel.build(content, report, actions, true, ZoneId.systemDefault());
 
-        return switch (ui.showPreview(model)) {
-            case PreviewChoice.Cancel cancel -> {
-                ui.showStatus("Closed without doing anything.");
-                yield false;
+        // Loops only for "Check where this goes": the preview comes back with the result added.
+        while (true) {
+            switch (ui.showPreview(model)) {
+                case PreviewChoice.Cancel cancel -> {
+                    ui.showStatus("Closed without doing anything.");
+                    return false;
+                }
+                case PreviewChoice.SelectArea selectArea -> {
+                    return true;
+                }
+                case PreviewChoice.RunAction run -> {
+                    // Runs here on the worker, and only because the user clicked it. (Security rule 3)
+                    ui.showStatus(run.action().run());
+                    return false;
+                }
+                case PreviewChoice.CheckRedirects check -> {
+                    // The ONLY network use in the app, and only on this click. (Security rule 5)
+                    if (content instanceof UrlContent url) {
+                        model = model.withRedirect(redirectResolver.resolve(url.url()));
+                    }
+                }
             }
-            case PreviewChoice.SelectArea selectArea -> true;
-            case PreviewChoice.RunAction run -> {
-                // Runs here on the worker, and only because the user clicked it. (Security rule 3)
-                ui.showStatus(run.action().run());
-                yield false;
-            }
-        };
+        }
     }
 
     // --- The single safety net (A6) ---

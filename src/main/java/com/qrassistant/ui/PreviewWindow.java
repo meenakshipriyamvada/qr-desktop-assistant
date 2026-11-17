@@ -91,6 +91,9 @@ public final class PreviewWindow {
         if (!model.indicators().isEmpty() || !model.checksSummary().isEmpty()) {
             body.getChildren().add(checks(model.indicators(), model.checksSummary()));
         }
+        if (!model.redirectLines().isEmpty()) {
+            body.getChildren().add(redirectBox(model.redirectLines()));
+        }
 
         ScrollPane scroll = new ScrollPane(body);
         scroll.setFitToWidth(true);
@@ -99,7 +102,7 @@ public final class PreviewWindow {
         Label kind = new Label(model.kind());
         kind.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
 
-        VBox root = new VBox(10, kind, scroll, cautions(model.actions()), buttons(model));
+        VBox root = new VBox(10, kind, scroll, cautions(model), buttons(model));
         root.setPadding(new Insets(14));
         root.setPrefWidth(WIDTH);
         VBox.setVgrow(scroll, Priority.ALWAYS);
@@ -179,10 +182,28 @@ public final class PreviewWindow {
         return box;
     }
 
-    /** Warnings that belong to the action buttons, e.g. "Copying includes the password". */
-    private static VBox cautions(List<Action> actions) {
+    /** What the redirect check found (already worded and sanitized by PreviewModel). */
+    private static VBox redirectBox(List<String> lines) {
+        Label title = new Label("Where this goes");
+        title.setStyle("-fx-font-weight: bold;");
+        VBox box = new VBox(4, title);
+        for (String line : lines) {
+            box.getChildren().add(wrapping(line));
+        }
+        return box;
+    }
+
+    /** Warnings that belong to the buttons, e.g. "Copying includes the password". */
+    private static VBox cautions(PreviewModel model) {
         VBox box = new VBox(2);
-        for (Action action : actions) {
+        if (model.canCheckRedirects()) {
+            // Checking is a real visit: a tracking link learns that someone scanned it.
+            Label note = wrapping("\"Check where this goes\" contacts the site. It will see a visit from "
+                    + "your computer. Nothing opens in your browser.");
+            note.setStyle("-fx-text-fill: gray;");
+            box.getChildren().add(note);
+        }
+        for (Action action : model.actions()) {
             if (!action.caution().isEmpty()) {
                 Label label = wrapping("⚠ " + action.caution());
                 label.setStyle("-fx-text-fill: #8a5300;");
@@ -214,6 +235,12 @@ public final class PreviewWindow {
             selectArea.setOnAction(e -> finish(new PreviewChoice.SelectArea()));
             guarded.add(selectArea);
             bottomRow.getChildren().add(selectArea);
+        }
+        if (model.canCheckRedirects()) {
+            Button check = new Button("Check where this goes");
+            check.setOnAction(e -> finish(new PreviewChoice.CheckRedirects()));
+            guarded.add(check);   // it uses the network, so it gets the same protection as an action
+            bottomRow.getChildren().add(check);
         }
         Region gap = new Region();
         HBox.setHgrow(gap, Priority.ALWAYS);
