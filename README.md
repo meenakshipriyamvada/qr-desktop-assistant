@@ -1,4 +1,4 @@
-# 🔍 QR Desktop Assistant
+# QR Desktop Assistant
 
 ![Java 21](https://img.shields.io/badge/Java-21-orange)
 ![JavaFX 21](https://img.shields.io/badge/JavaFX-21-blue)
@@ -14,7 +14,7 @@ No phone, no webcam, no cloud.
 
 ---
 
-## ⚡ In 3 seconds
+## In 3 seconds
 
 1. A QR code is on your screen: a slide, a PDF, a WhatsApp Web chat, a payment page.
 2. Press **`Ctrl` + `Shift` + `Q`**, wherever you are.
@@ -47,7 +47,7 @@ No phone, no webcam, no cloud.
 
 ---
 
-## 🎯 Smart scan
+##  Smart scan
 
 | On screen | What happens |
 |---|---|
@@ -61,7 +61,7 @@ stay sharp on 150% scaled screens. It also reads **inverted** (light-on-dark) co
 
 ---
 
-## 🛡️ Tricks it catches
+## Tricks it catches
 
 QR codes are the perfect phishing delivery: you can't *read* them before you trust them.
 Here's what the app checks, **entirely offline**:
@@ -82,43 +82,43 @@ And just as important, what it **never** says: *"safe"*. The best it will say is
 
 ---
 
-## 🔐 Built paranoid, on purpose
+##  Built paranoid, on purpose
 
-- **🚫 Nothing opens by itself.** Every action waits for your click. **Enter and Esc both
+- ** Nothing opens by itself.** Every action waits for your click. **Enter and Esc both
   mean Cancel**, and action buttons ignore clicks for the first **400 ms**, so a stray click can't
   fire one.
-- **🔒 Two locks before your browser opens.** The checks must allow it, *and* a separate gate
+- ** Two locks before your browser opens.** The checks must allow it, *and* a separate gate
   re-checks `http`/`https` right before opening. One bug can't open both.
-- **🙈 Secrets stay hidden.** Wi-Fi passwords and 2FA secrets show as `••••••••` until you click
+- ** Secrets stay hidden.** Wi-Fi passwords and 2FA secrets show as `••••••••` until you click
   *Show*. Copying them warns you that other apps can read the clipboard.
-- **📵 Offline by default.** The only network use is the opt-in redirect check: max 5 hops,
+- ** Offline by default.** The only network use is the opt-in redirect check: max 5 hops,
   4-second timeouts, no cookies, nothing downloaded, and local addresses are refused *even after
   DNS*. And *Open* still opens the **original** link, never the redirect target.
-- **✉️ Email links are rebuilt, not passed on.** A QR `mailto:` can smuggle in `bcc=` or
+- ** Email links are rebuilt, not passed on.** A QR `mailto:` can smuggle in `bcc=` or
   `attach=` fields. The app builds its own link from only what you saw.
-- **💣 Image bombs are defused.** Size is read from the file header *before* decoding:
+- ** Image bombs are defused.** Size is read from the file header *before* decoding:
   max 12000 px per side and 50 megapixels.
-- **🤐 It never logs what it reads.** Only error *types* (like `ConnectException`), never QR
+- ** It never logs what it reads.** Only error *types* (like `ConnectException`), never QR
   text, URLs or exception messages.
 
 ---
 
-## 📦 What it understands
+##  What it understands
 
 | Content | Example | You can… |
 |---|---|---|
-| 🌐 Web address | `https://example.com` | Open in browser · Copy address · Check where it goes |
-| 📶 Wi-Fi | `WIFI:T:WPA;S:Home;P:secret;;` | Copy network name · Copy password |
-| ✉️ Email | `mailto:…`, `MATMSG:…`, plain address | Write email (opens a draft, never sends) · Copy address |
-| 📞 Phone | `tel:+91 98765 43210` | Copy number |
-| 👤 Contact | vCard, MeCard | Copy text |
-| 📅 Event | `BEGIN:VEVENT…` | Times shown in *your* time zone · Copy text |
-| 🔑 2FA setup | `otpauth://…` | Copy secret (masked, with a warning) |
-| 📝 Anything else | plain text, unreadable data | Copy text |
+|  Web address | `https://example.com` | Open in browser · Copy address · Check where it goes |
+|  Wi-Fi | `WIFI:T:WPA;S:Home;P:secret;;` | Copy network name · Copy password |
+|  Email | `mailto:…`, `MATMSG:…`, plain address | Write email (opens a draft, never sends) · Copy address |
+|  Phone | `tel:+91 98765 43210` | Copy number |
+|  Contact | vCard, MeCard | Copy text |
+|  Event | `BEGIN:VEVENT…` | Times shown in *your* time zone · Copy text |
+|  2FA setup | `otpauth://…` | Copy secret (masked, with a warning) |
+|  Anything else | plain text, unreadable data | Copy text |
 
 ---
 
-## 🚀 Run it
+##  Run it
 
 **You need:** Windows 10/11 · JDK 21 · Maven 3.9+ (or IntelliJ IDEA, which includes it)
 
@@ -131,7 +131,7 @@ In IntelliJ, set the Project SDK to **21** and run `QrAssistantApp`.
 The app lives in the **system tray**. Closing the window just hides it, and **Ctrl+Shift+Q** keeps
 working. Right-click the tray icon to scan, open the window, or **Quit**.
 
-## 🧪 Test it
+##  Test it
 
 ```
 mvn test
@@ -146,7 +146,7 @@ What only a human can check (the tray, the hotkey, HiDPI outlines, the real brow
 
 ---
 
-## 🏗️ Under the hood
+##  Under the hood
 
 ```
  Ctrl+Shift+Q / tray / button
@@ -184,7 +184,7 @@ What only a human can check (the tray, the hotkey, HiDPI outlines, the real brow
 
 ---
 
-## ⚠️ Honest limits
+##  Honest limits
 
 - **Windows only.**
 - If another app already owns Ctrl+Shift+Q, Windows may not say so. Use the tray instead.
