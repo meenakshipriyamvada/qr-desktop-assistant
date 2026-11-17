@@ -14,6 +14,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -192,35 +193,40 @@ public final class PreviewWindow {
         return box;
     }
 
-    private HBox buttons(PreviewModel model) {
-        HBox bar = new HBox(8);
-        bar.setAlignment(Pos.CENTER_RIGHT);
-
-        if (model.canSelectArea()) {
-            Button selectArea = new Button("Not this one? Select area");
-            selectArea.setOnAction(e -> finish(new PreviewChoice.SelectArea()));
-            guarded.add(selectArea);
-            bar.getChildren().add(selectArea);
-        }
-
-        Region gap = new Region();
-        HBox.setHgrow(gap, Priority.ALWAYS);
-        bar.getChildren().add(gap);
-
+    /**
+     * Two rows: the actions on top (they wrap onto a new line if there are many),
+     * then "Select area" on the left and Cancel on the right.
+     */
+    private VBox buttons(PreviewModel model) {
+        FlowPane actionRow = new FlowPane(8, 8);
+        actionRow.setAlignment(Pos.CENTER_RIGHT);
         for (Action action : model.actions()) {
             Button button = new Button(action.label());
             button.setOnAction(e -> finish(new PreviewChoice.RunAction(action)));
             guarded.add(button);
-            bar.getChildren().add(button);
+            actionRow.getChildren().add(button);
         }
+
+        HBox bottomRow = new HBox(8);
+        bottomRow.setAlignment(Pos.CENTER_RIGHT);
+        if (model.canSelectArea()) {
+            Button selectArea = new Button("Not this one? Select area");
+            selectArea.setOnAction(e -> finish(new PreviewChoice.SelectArea()));
+            guarded.add(selectArea);
+            bottomRow.getChildren().add(selectArea);
+        }
+        Region gap = new Region();
+        HBox.setHgrow(gap, Priority.ALWAYS);
+        bottomRow.getChildren().add(gap);
 
         // Cancel is never guarded: closing is always safe.
         Button cancel = new Button("Cancel");
         cancel.setDefaultButton(true);   // Enter = Cancel
         cancel.setCancelButton(true);    // Esc = Cancel
         cancel.setOnAction(e -> finish(new PreviewChoice.Cancel()));
-        bar.getChildren().add(cancel);
-        return bar;
+        bottomRow.getChildren().add(cancel);
+
+        return new VBox(8, actionRow, bottomRow);
     }
 
     private static Label wrapping(String text) {

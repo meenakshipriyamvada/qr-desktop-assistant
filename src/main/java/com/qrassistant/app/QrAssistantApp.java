@@ -13,6 +13,7 @@ import com.qrassistant.content.ContentRecognizer;
 import java.util.logging.Logger;
 import com.qrassistant.urlcheck.UrlSafetyChecker;
 import com.qrassistant.system.ClipboardService;
+import com.qrassistant.system.DesktopService;
 /**
  * Entry point of QR Desktop Assistant.
  *
@@ -61,7 +62,7 @@ public class QrAssistantApp extends Application {
                 new ZxingQrScanner(),
                 new ContentRecognizer(),
                 new UrlSafetyChecker(),
-                new ActionManager(new ClipboardService()));
+                new ActionManager(new ClipboardService(), new DesktopService()));
 
         mainWindow.show();
     }

@@ -168,7 +168,7 @@ public class ScanWorkflow {
             report = urlSafetyChecker.check(url.url());
         }
 
-        List<Action> actions = actionManager.actionsFor(content);
+        List<Action> actions = actionManager.actionsFor(content, report);
         PreviewModel model = PreviewModel.build(content, report, actions, true, ZoneId.systemDefault());
 
         return switch (ui.showPreview(model)) {
