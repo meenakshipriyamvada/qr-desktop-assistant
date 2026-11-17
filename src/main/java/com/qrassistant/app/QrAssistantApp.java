@@ -16,6 +16,9 @@ import com.qrassistant.urlcheck.RedirectResolver;
 import com.qrassistant.urlcheck.UrlSafetyChecker;
 import com.qrassistant.system.ClipboardService;
 import com.qrassistant.system.DesktopService;
+import com.qrassistant.system.GlobalShortcut;
+import com.qrassistant.system.JIntellitypeShortcut;
+import com.qrassistant.ui.AppTray;
 /**
  * Entry point of QR Desktop Assistant.
  *
@@ -31,11 +34,13 @@ public class QrAssistantApp extends Application {
 
     private MainWindow mainWindow;
     private ScanWorkflow workflow;
+    private final GlobalShortcut shortcut = new JIntellitypeShortcut();
+    private AppTray tray;   // null if Windows offers no tray
 
     @Override
     public void start(Stage primaryStage) {
         // By default JavaFX quits when the last window closes.
-        // We turn that off: later the app must keep running in the tray
+        // We turn that off: the app keeps running in the tray
         // so Ctrl+Shift+Q still works with no window open. (Stage 4, I8)
         Platform.setImplicitExit(false);
 
@@ -68,12 +73,30 @@ public class QrAssistantApp extends Application {
                 new RedirectResolver(),
                 new ImageFileLoader());
 
+        // Ctrl+Shift+Q. requestScreenScan() only hands the job to the worker, so it's safe to
+        // call from JIntellitype's thread and returns at once.
+        boolean shortcutOk = shortcut.register(workflow::requestScreenScan);
+        mainWindow.setShortcutHint(shortcutOk
+                ? "Shortcut: Ctrl + Shift + Q (if nothing happens, another app may be using it)"
+                : "The Ctrl + Shift + Q shortcut isn't available. Use the button or the tray icon.");
+
+        // Tray menu callbacks arrive on AWT's thread: scans go to the worker (thread-safe),
+        // window work goes to the JavaFX thread with Platform.runLater.
+        tray = AppTray.install(
+                workflow::requestScreenScan,
+                workflow::requestFileScan,
+                () -> Platform.runLater(mainWindow::show),
+                () -> Platform.runLater(this::quit)).orElse(null);
+        if (tray != null) {
+            mainWindow.hideOnClose(tray::tellStillRunning);   // X now hides to the tray
+        }
+
         mainWindow.show();
     }
 
     // --- Shutdown ---
 
-    /** The single way the app shuts down. Quit button, window close and (later) the tray all call this. */
+    /** The single way the app shuts down. The Quit button and the tray's Quit call this. */
     private void quit() {
         // Asks JavaFX to shut down. JavaFX then calls stop() below and ends the program.
         Platform.exit();
@@ -82,12 +105,17 @@ public class QrAssistantApp extends Application {
     @Override
     public void stop() {
         // Called by JavaFX exactly once, after Platform.exit().
+        shortcut.unregister();   // Windows would otherwise keep Ctrl+Shift+Q reserved until we exit
+        if (tray != null) {
+            tray.remove();
+        }
         if (workflow != null) {
             workflow.shutdown();
         }
-        // Later steps add here:
-        //  - unregister Ctrl+Shift+Q         (step 14)
-        //  - remove the tray icon            (step 14)
+        // AWT (the tray) can keep background threads alive after JavaFX has stopped,
+        // which would leave an invisible process running. Everything is cleaned up above,
+        // so end the program for certain.
+        System.exit(0);
     }
 
     public static void main(String[] args) {

@@ -57,6 +57,9 @@ public class FxUiGateway implements UiGateway {
         runOnFx(() -> {
             mainWindow.setStatus(message + " Click \"Try again\" to retry.");
             mainWindow.showTryAgainButton(true);
+            // A scan started from the shortcut or tray may have no window open: a problem
+            // must still be seen, so bring the window up.
+            mainWindow.show();
         });
     }
 

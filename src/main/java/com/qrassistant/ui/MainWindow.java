@@ -21,6 +21,7 @@ public class MainWindow {
 
     private final Stage stage;
     private final Label statusLabel = new Label("Ready.");
+    private final Label shortcutHint = new Label("Shortcut: Ctrl + Shift + Q");
     private final Button tryAgainButton;
 
     /**
@@ -35,8 +36,8 @@ public class MainWindow {
         Label title = new Label("QR Desktop Assistant");
         title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
 
-        Label shortcutHint = new Label("Shortcut: Ctrl + Shift + Q (coming in step 14)");
         shortcutHint.setStyle("-fx-text-fill: gray;");
+        shortcutHint.setWrapText(true);
 
         Button scanScreenButton = createWideButton("Scan screen", onScanScreen);
         Button scanFileButton = createWideButton("Scan image file\u2026", onScanFile);
@@ -65,10 +66,30 @@ public class MainWindow {
         stage.setMinWidth(300);
         stage.setMinHeight(280);
 
-        // Until the tray icon exists (step 14), the window's X button quits the app.
-        // Otherwise, with implicit exit turned off, closing the window would leave
-        // the app running invisibly with no way to get back to it.
+        // Without a tray icon, the window's X button must quit the app. Otherwise, with implicit
+        // exit turned off, closing the window would leave the app running invisibly with no way
+        // back to it. When the tray icon exists, hideOnClose() changes this.
         stage.setOnCloseRequest(event -> onQuit.run());
+    }
+
+    /**
+     * From now on the X button only HIDES the window: the app keeps running in the tray.
+     * Call only once the tray icon really exists.
+     *
+     * @param onHidden called after hiding, e.g. to show "still running" in the tray
+     */
+    public void hideOnClose(Runnable onHidden) {
+        stage.setOnCloseRequest(event -> {
+            event.consume();   // cancel the normal close...
+            stage.hide();      // ...and just hide instead
+            onHidden.run();
+        });
+    }
+
+    /** The grey line under the title, e.g. whether Ctrl+Shift+Q is working. FX thread only. */
+    public void setShortcutHint(String text) {
+        requireFxThread("setShortcutHint");
+        shortcutHint.setText(text);
     }
 
     public void show() {

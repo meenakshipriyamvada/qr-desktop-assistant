@@ -53,6 +53,12 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- JIntellitype: a global Windows shortcut (Ctrl+Shift+Q) that works while other apps are in front -->
+        <dependency>
+            <groupId>com.melloware</groupId>
+            <artifactId>jintellitype</artifactId>
+            <version>1.5.6</version>
+        </dependency>
         <!-- JUnit 5: automatic tests. "test" scope = only used by tests, not shipped with the app -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
