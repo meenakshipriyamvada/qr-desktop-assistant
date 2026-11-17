@@ -37,6 +37,38 @@ public final class ContentLabels {
         };
     }
 
+    /** Longest summary shown in a list, in characters. */
+    static final int SUMMARY_LENGTH = 60;
+
+    /**
+     * One short, SAFE line for a list of codes, e.g. "Wi-Fi network: HomeNet".
+     * Never shows a secret: Wi-Fi shows only the network name, 2FA codes show nothing.
+     * Sanitized and shortened.
+     */
+    public static String summary(QrContent content) {
+        String detail = switch (content) {
+            case UrlContent url -> url.url();
+            case WifiContent wifi -> wifi.networkName();
+            case EmailContent email -> email.address();
+            case PhoneContent phone -> phone.number();
+            case ContactContent contact -> contact.name();
+            case EventContent event -> event.title();
+            case TextContent text when text.sensitive() -> "(hidden)";
+            case TextContent text -> text.rawText();
+            case UnknownContent unknown -> "";
+        };
+        String shown = shorten(DisplaySanitizer.forSingleLine(detail.strip()).text());
+        return shown.isEmpty() ? kindOf(content) : kindOf(content) + ": " + shown;
+    }
+
+    /** Cuts long text, counting real characters (an emoji is one, not two Java chars). */
+    private static String shorten(String text) {
+        if (text.codePointCount(0, text.length()) <= SUMMARY_LENGTH) {
+            return text;
+        }
+        return text.substring(0, text.offsetByCodePoints(0, SUMMARY_LENGTH)) + "…";
+    }
+
     /**
      * Wi-Fi security type in plain words. Never echoes the QR's own value back:
      * an unknown type just becomes "Other".

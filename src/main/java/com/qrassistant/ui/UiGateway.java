@@ -2,7 +2,10 @@ package com.qrassistant.ui;
 
 import com.qrassistant.capture.CapturedScreen;
 import com.qrassistant.scan.DecodedQr;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
 /**
  * Everything the scan workflow needs from the user interface.
  *
@@ -38,6 +41,17 @@ public interface UiGateway {
      */
     OverlayResult showOverlay(CapturedScreen captured, List<DecodedQr> codes, OverlayMode mode);
 
+    /** Shows the "Open image" dialog and WAITS. Empty if the user cancelled. */
+    Optional<Path> chooseImageFile();
+
+    /**
+     * Shows a list of codes found in an image file and WAITS for the user to pick one.
+     *
+     * @param labels one sanitized line per code
+     * @return the chosen position in the list, or empty if the user cancelled
+     */
+    OptionalInt chooseCode(List<String> labels);
+
     /** Shows the preview window and WAITS until the user clicks a button or closes it. */
     PreviewChoice showPreview(PreviewModel model);
 
@@ -47,6 +61,6 @@ public interface UiGateway {
      */
     PreviewChoice updatePreview(PreviewModel model);
 
-    /** Closes the overlay and the preview if open. Used by the workflow's safety net; never throws. */
+    /** Closes the overlay, the code list and the preview if open. Used by the workflow's safety net; never throws. */
     void closeScanWindows();
 }

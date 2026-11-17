@@ -3,7 +3,10 @@ package com.qrassistant.ui;
 import com.qrassistant.capture.CapturedScreen;
 import com.qrassistant.scan.DecodedQr;
 import javafx.application.Platform;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -73,6 +76,19 @@ public class FxUiGateway implements UiGateway {
     }
 
     @Override
+    public Optional<Path> chooseImageFile() {
+        // FileChooser waits by itself (a "nested" event loop), so one call does it all.
+        return callOnFx(() -> ImageFileChooser.choose(mainWindow.owner()));
+    }
+
+    @Override
+    public OptionalInt chooseCode(List<String> labels) {
+        CompletableFuture<Integer> pending = callOnFx(() -> QrChooserDialog.open(labels));
+        int index = waitForUser(pending);
+        return index == QrChooserDialog.CANCELLED ? OptionalInt.empty() : OptionalInt.of(index);
+    }
+
+    @Override
     public PreviewChoice showPreview(PreviewModel model) {
         // Same two steps as the overlay: open on the FX thread, then wait here for the click.
         CompletableFuture<PreviewChoice> pending = callOnFx(() -> PreviewWindow.open(model));
@@ -90,6 +106,7 @@ public class FxUiGateway implements UiGateway {
         // Fire-and-forget: we don't wait, so this can't get stuck even if the UI is in trouble.
         Platform.runLater(() -> {
             SelectionOverlay.closeAny();
+            QrChooserDialog.closeAny();
             PreviewWindow.closeAny();
         });
     }

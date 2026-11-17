@@ -4,10 +4,13 @@ import com.qrassistant.action.ActionManager;
 import com.qrassistant.content.ContentRecognizer;
 import com.qrassistant.content.QrContent;
 import com.qrassistant.capture.CapturedScreen;
+import com.qrassistant.capture.ImageFileLoader;
+import com.qrassistant.capture.ImageLoadException;
 import com.qrassistant.capture.ScreenCaptureException;
 import com.qrassistant.capture.ScreenCapturer;
 import com.qrassistant.scan.DecodedQr;
 import com.qrassistant.scan.QrScanner;
+import com.qrassistant.ui.ContentLabels;
 import com.qrassistant.ui.OverlayMode;
 import com.qrassistant.ui.OverlayResult;
 import com.qrassistant.ui.PreviewChoice;
@@ -18,8 +21,12 @@ import com.qrassistant.urlcheck.RedirectResolver;
 import com.qrassistant.urlcheck.UrlReport;
 import com.qrassistant.urlcheck.UrlSafetyChecker;
 import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
+import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -47,6 +54,7 @@ public class ScanWorkflow {
     private final UrlSafetyChecker urlSafetyChecker;
     private final ActionManager actionManager;
     private final RedirectResolver redirectResolver;
+    private final ImageFileLoader imageFileLoader;
     /** One worker thread. "Daemon" = it never keeps the program alive on its own. */
     private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "scan-worker");
@@ -59,7 +67,8 @@ public class ScanWorkflow {
 
     public ScanWorkflow(UiGateway ui, ScreenCapturer screenCapturer, QrScanner qrScanner,
                         ContentRecognizer contentRecognizer, UrlSafetyChecker urlSafetyChecker,
-                        ActionManager actionManager, RedirectResolver redirectResolver) {
+                        ActionManager actionManager, RedirectResolver redirectResolver,
+                        ImageFileLoader imageFileLoader) {
         this.ui = ui;
         this.screenCapturer = screenCapturer;
         this.qrScanner = qrScanner;
@@ -67,6 +76,7 @@ public class ScanWorkflow {
         this.urlSafetyChecker = urlSafetyChecker;
         this.actionManager = actionManager;
         this.redirectResolver = redirectResolver;
+        this.imageFileLoader = imageFileLoader;
     }
     // --- Entry points: may be called from ANY thread; they only hand the job to the worker ---
 
@@ -77,6 +87,14 @@ public class ScanWorkflow {
             return;
         }
         worker.execute(() -> runSafely(this::scanScreen));
+    }
+
+    public void requestFileScan() {
+        // Same lock as screen scans: only one scan of either kind at a time.
+        if (!scanInProgress.compareAndSet(false, true)) {
+            return;
+        }
+        worker.execute(() -> runSafely(this::scanFile));
     }
 
     /** Stops the worker. Called once when the app quits. */
@@ -97,7 +115,7 @@ public class ScanWorkflow {
         List<DecodedQr> codes = qrScanner.scan(captured.image());
 
         // Exactly one code: straight to the preview. Unless the user says "Not this one", we're done.
-        if (codes.size() == 1 && !previewWantsSelectArea(codes.get(0))) {
+        if (codes.size() == 1 && !previewWantsSelectArea(codes.get(0), true)) {
             return;
         }
         chooseOnScreen(captured, codes);   // none, several, or "Not this one? Select area"
@@ -138,7 +156,7 @@ public class ScanWorkflow {
             }
 
             if (chosen != null) {
-                if (!previewWantsSelectArea(chosen)) {
+                if (!previewWantsSelectArea(chosen, true)) {
                     return;
                 }
                 // "Not this one": back to the overlay, with everything found on the screen outlined.
@@ -156,13 +174,57 @@ public class ScanWorkflow {
                 .toList();
     }
 
+    // --- Image file scan (runs on the worker thread) ---
+
+    private void scanFile() {
+        ui.clearProblem();
+        Optional<Path> file = ui.chooseImageFile();
+        if (file.isEmpty()) {
+            return;   // the user cancelled the dialog: nothing to say
+        }
+
+        BufferedImage image;
+        try {
+            image = imageFileLoader.load(file.get());
+        } catch (ImageLoadException e) {
+            ui.showStatus(e.getMessage());   // written for the user by the loader; never file content
+            return;
+        }
+
+        List<DecodedQr> codes = qrScanner.scan(image);
+        if (codes.isEmpty()) {
+            ui.showStatus("No QR code found in that image. If the code is small or blurry, open the image, "
+                    + "zoom in, and use \"Scan screen\".");
+            return;
+        }
+
+        DecodedQr chosen = codes.get(0);
+        if (codes.size() > 1) {
+            // Several codes and no live screen to click on: ask with a list instead.
+            List<String> labels = codes.stream()
+                    .map(code -> ContentLabels.summary(contentRecognizer.recognize(code.text())))
+                    .toList();
+            OptionalInt index = ui.chooseCode(labels);
+            if (index.isEmpty()) {
+                ui.showStatus("Scan cancelled.");
+                return;
+            }
+            chosen = codes.get(index.getAsInt());
+        }
+        // A file has no screen to select an area on, so the preview won't offer it.
+        previewWantsSelectArea(chosen, false);
+    }
+
+    // --- The preview (both kinds of scan) ---
+
     /**
      * One code has been chosen: work out what it is, check it if it's a URL, show the preview,
      * and do whatever the user picks there.
      *
+     * @param canSelectArea offer "Not this one? Select area"? (screen scans only)
      * @return true if the user clicked "Not this one? Select area"
      */
-    private boolean previewWantsSelectArea(DecodedQr code) {
+    private boolean previewWantsSelectArea(DecodedQr code, boolean canSelectArea) {
         QrContent content = contentRecognizer.recognize(code.text());
 
         // URL checks only apply to URLs. They're offline and fast, so they run right here.
@@ -172,7 +234,7 @@ public class ScanWorkflow {
         }
 
         List<Action> actions = actionManager.actionsFor(content, report);
-        PreviewModel model = PreviewModel.build(content, report, actions, true, ZoneId.systemDefault());
+        PreviewModel model = PreviewModel.build(content, report, actions, canSelectArea, ZoneId.systemDefault());
 
         PreviewChoice choice = ui.showPreview(model);
 

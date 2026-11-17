@@ -9,6 +9,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 
 /**
  * The app's main window.
@@ -79,6 +80,11 @@ public class MainWindow {
     public void hide() {
         stage.hide();
     }
+    /** This window, for dialogs that should stay in front of it, or null while it's hidden. */
+    public Window owner() {
+        return stage.isShowing() ? stage : null;
+    }
+
     /** Is the window currently open on screen? */
     public boolean isShowing() {
         return stage.isShowing();

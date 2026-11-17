@@ -1,5 +1,6 @@
 package com.qrassistant.app;
 import com.qrassistant.action.ActionManager;
+import com.qrassistant.capture.ImageFileLoader;
 import com.qrassistant.capture.ScreenCapturer;
 import com.qrassistant.scan.ZxingQrScanner;
 import com.qrassistant.ui.FxUiGateway;
@@ -54,7 +55,7 @@ public class QrAssistantApp extends Application {
         mainWindow = new MainWindow(
                 primaryStage,
                 () -> workflow.requestScreenScan(),
-                this::onScanFileRequested,
+                () -> workflow.requestFileScan(),
                 this::quit);
 
         workflow = new ScanWorkflow(
@@ -64,13 +65,10 @@ public class QrAssistantApp extends Application {
                 new ContentRecognizer(),
                 new UrlSafetyChecker(),
                 new ActionManager(new ClipboardService(), new DesktopService()),
-                new RedirectResolver());
+                new RedirectResolver(),
+                new ImageFileLoader());
 
         mainWindow.show();
-    }
-
-    private void onScanFileRequested() {
-        mainWindow.setStatus("Image file scanning isn't built yet (step 13).");
     }
 
     // --- Shutdown ---
