@@ -24,7 +24,8 @@ import java.util.logging.Logger;
  *     (so we can say exactly what's wrong instead of "not an image")
  *  3. the image's WIDTH and HEIGHT are read from its header BEFORE decoding.
  *     A small file can claim to be 50000 x 50000 pixels ("decompression bomb") and
- *     decoding it would use gigabytes of memory, so huge sizes are refused here.
+ *     decoding it would use gigabytes of memory, so huge sizes are refused here:
+ *     both too long on one side, and too many pixels in total.
  *  4. only then the pixels are decoded
  *
  * Supported: whatever Java's ImageIO reads: PNG, JPEG, BMP, GIF, TIFF.
@@ -36,6 +37,11 @@ public class ImageFileLoader {
 
     /** Longest side we accept, in pixels. */
     public static final int MAX_SIDE = 12_000;
+    /**
+     * Most pixels we decode in total: 50 million is about 200 MB of memory.
+     * Big enough for a 48-megapixel phone photo; a 4K screenshot is only about 8 million.
+     */
+    public static final long MAX_PIXELS = 50_000_000L;
     /** Largest file we even look at. A QR screenshot or photo is far smaller. */
     static final long MAX_FILE_BYTES = 100L * 1024 * 1024;
 
@@ -76,6 +82,14 @@ public class ImageFileLoader {
                 if (width > MAX_SIDE || height > MAX_SIDE) {
                     throw new ImageLoadException("That image is too large (" + width + " × " + height
                             + " pixels). The limit is " + MAX_SIDE + " pixels on each side.");
+                }
+                // The side limit alone still allows 12000 x 12000 = 144 million pixels (~576 MB),
+                // so the TOTAL is limited too. "long": width * height can overflow an int.
+                long pixels = (long) width * height;
+                if (pixels > MAX_PIXELS) {
+                    throw new ImageLoadException("That image is too large (" + (pixels / 1_000_000)
+                            + " megapixels). The limit is " + (MAX_PIXELS / 1_000_000) + " megapixels. "
+                            + "Use a smaller copy, or open it and use \"Scan screen\".");
                 }
                 BufferedImage image = reader.read(0);
                 if (image == null) {

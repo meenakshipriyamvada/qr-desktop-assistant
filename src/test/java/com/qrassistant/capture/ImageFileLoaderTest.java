@@ -76,6 +76,15 @@ class ImageFileLoaderTest {
     }
 
     @Test
+    void tooManyPixelsInTotalIsRefused() throws Exception {
+        // 10000 x 10000: each side is under the 12000 limit, but it's 100 megapixels (~400 MB).
+        Path file = folder.resolve("square-bomb.png");
+        Files.write(file, pngHeaderOnly(10_000, 10_000));
+        ImageLoadException e = assertThrows(ImageLoadException.class, () -> loader.load(file));
+        assertTrue(e.getMessage().contains("100 megapixels"), e.getMessage());
+    }
+
+    @Test
     void webpIsExplained() throws Exception {
         Path file = folder.resolve("photo.png");   // the name lies; the bytes tell the truth
         Files.write(file, bytes("RIFF\0\0\0\0WEBPVP8 "));
