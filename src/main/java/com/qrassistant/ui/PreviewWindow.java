@@ -38,6 +38,9 @@ import java.util.concurrent.CompletableFuture;
  *    meant for the overlay can't land on an action by accident.
  *  - Secrets are masked until "Show" is clicked.
  *
+ * "Check where this goes" doesn't close the window: it shows "Checking..." with every button
+ * except Cancel disabled, and the workflow then calls update() with the result.
+ *
  * The window makes no decisions. It draws a PreviewModel (already sanitized) and reports
  * which button was clicked. Runs on the JavaFX thread only.
  */
@@ -52,9 +55,13 @@ public final class PreviewWindow {
     private static PreviewWindow current;
 
     private final Stage stage = new Stage();
-    private final CompletableFuture<PreviewChoice> result = new CompletableFuture<>();
+    /** The monitor the preview belongs on (the one under the mouse when it opened). */
+    private final Rectangle2D screen = screenUnderMouse().getVisualBounds();
+    /** Completed when the user makes a choice. A new one starts with each update(). */
+    private CompletableFuture<PreviewChoice> round = new CompletableFuture<>();
     /** Buttons that stay disabled until the input guard ends. */
     private final List<ButtonBase> guarded = new ArrayList<>();
+    private PauseTransition guard;
     private boolean finished;
 
     /**
@@ -66,7 +73,23 @@ public final class PreviewWindow {
         PreviewWindow window = new PreviewWindow(model);
         current = window;
         window.show();
-        return window.result;
+        return window.round;
+    }
+
+    /**
+     * Shows a new model in the preview that's already open (after "Check where this goes"),
+     * and returns a future for the user's NEXT choice. If the user closed the preview meanwhile,
+     * the answer is simply Cancel.
+     */
+    public static CompletableFuture<PreviewChoice> update(PreviewModel model) {
+        if (current == null) {
+            return CompletableFuture.completedFuture(new PreviewChoice.Cancel());
+        }
+        current.round = new CompletableFuture<>();
+        current.render(model);
+        current.keepOnScreen();
+        current.startGuard();
+        return current.round;
     }
 
     /** Emergency exit: closes any open preview as "Cancel". Safe to call when none is open. */
@@ -77,6 +100,19 @@ public final class PreviewWindow {
     }
 
     private PreviewWindow(PreviewModel model) {
+        stage.setAlwaysOnTop(true);   // may be opened by the shortcut while other apps are in front
+        stage.setOnHidden(event -> finish(new PreviewChoice.Cancel()));   // the X button = Cancel
+        // Centre on the monitor under the mouse: the one the user just scanned.
+        stage.setOnShown(e -> {
+            stage.setX(screen.getMinX() + (screen.getWidth() - stage.getWidth()) / 2);
+            stage.setY(screen.getMinY() + (screen.getHeight() - stage.getHeight()) / 2);
+        });
+        render(model);
+    }
+
+    /** Builds the whole window content from the model. Called on open and on every update. */
+    private void render(PreviewModel model) {
+        guarded.clear();
         VBox body = new VBox(12);
         body.setPadding(new Insets(4, 12, 4, 4));
 
@@ -109,8 +145,6 @@ public final class PreviewWindow {
 
         stage.setTitle("QR code — " + model.kind());
         stage.setScene(new Scene(root));
-        stage.setAlwaysOnTop(true);   // may be opened by the shortcut while other apps are in front
-        stage.setOnHidden(event -> finish(new PreviewChoice.Cancel()));   // the X button = Cancel
 
         fitToContent(root, body, scroll);
     }
@@ -238,7 +272,7 @@ public final class PreviewWindow {
         }
         if (model.canCheckRedirects()) {
             Button check = new Button("Check where this goes");
-            check.setOnAction(e -> finish(new PreviewChoice.CheckRedirects()));
+            check.setOnAction(e -> startChecking(check));
             guarded.add(check);   // it uses the network, so it gets the same protection as an action
             bottomRow.getChildren().add(check);
         }
@@ -288,20 +322,20 @@ public final class PreviewWindow {
      * JavaFX only knows how tall wrapped text is AFTER css and layout have run, so we run them first.
      */
     private void fitToContent(VBox root, VBox body, ScrollPane scroll) {
-        Rectangle2D screen = screenUnderMouse().getVisualBounds();
-
         root.applyCss();
         root.layout();
         double bodyWidth = WIDTH - root.getPadding().getLeft() - root.getPadding().getRight() - 20;
         double bodyHeight = body.prefHeight(bodyWidth);
         scroll.setPrefViewportHeight(Math.min(bodyHeight, screen.getHeight() * MAX_SCREEN_SHARE));
         stage.sizeToScene();
+    }
 
-        // Centre on the monitor under the mouse: the one the user just scanned.
-        stage.setOnShown(e -> {
-            stage.setX(screen.getMinX() + (screen.getWidth() - stage.getWidth()) / 2);
-            stage.setY(screen.getMinY() + (screen.getHeight() - stage.getHeight()) / 2);
-        });
+    /** After an update the window may be taller: move it up if its bottom would leave the screen. */
+    private void keepOnScreen() {
+        double overflow = stage.getY() + stage.getHeight() - screen.getMaxY();
+        if (overflow > 0) {
+            stage.setY(Math.max(screen.getMinY(), stage.getY() - overflow));
+        }
     }
 
     private static Screen screenUnderMouse() {
@@ -315,14 +349,33 @@ public final class PreviewWindow {
     // --- Showing and ending ---
 
     private void show() {
-        guarded.forEach(b -> b.setDisable(true));
         stage.show();
         stage.toFront();
+        startGuard();   // starts once the window is actually visible
+    }
 
-        // The guard starts once the window is actually visible.
-        PauseTransition guard = new PauseTransition(INPUT_GUARD);
+    /** Disables every guarded button, then enables them again after INPUT_GUARD. */
+    private void startGuard() {
+        if (guard != null) {
+            guard.stop();   // an older guard must not enable buttons at the wrong moment
+        }
+        guarded.forEach(b -> b.setDisable(true));
+        guard = new PauseTransition(INPUT_GUARD);
         guard.setOnFinished(e -> guarded.forEach(b -> b.setDisable(false)));
         guard.play();
+    }
+
+    /**
+     * "Check where this goes": the window STAYS open and says it's checking. Every button except
+     * Cancel is disabled, so nothing can be opened or copied while the answer is on its way.
+     */
+    private void startChecking(Button check) {
+        if (guard != null) {
+            guard.stop();
+        }
+        guarded.forEach(b -> b.setDisable(true));
+        check.setText("Checking…");
+        round.complete(new PreviewChoice.CheckRedirects());
     }
 
     /** Closes the window FIRST, then reports the choice. Runs only once, however it's triggered. */
@@ -334,7 +387,12 @@ public final class PreviewWindow {
         if (current == this) {
             current = null;
         }
+        if (guard != null) {
+            guard.stop();
+        }
         stage.close();   // fires setOnHidden -> finish(Cancel), which returns at once (already finished)
-        result.complete(choice);
+        // If a check is running, this round is already complete: the workflow will get Cancel
+        // from its next update() instead, because 'current' is now null.
+        round.complete(choice);
     }
 }

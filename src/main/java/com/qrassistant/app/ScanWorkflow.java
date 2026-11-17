@@ -174,9 +174,12 @@ public class ScanWorkflow {
         List<Action> actions = actionManager.actionsFor(content, report);
         PreviewModel model = PreviewModel.build(content, report, actions, true, ZoneId.systemDefault());
 
-        // Loops only for "Check where this goes": the preview comes back with the result added.
+        PreviewChoice choice = ui.showPreview(model);
+
+        // Loops only for "Check where this goes": the preview stays open showing "Checking...",
+        // and is then updated with the result.
         while (true) {
-            switch (ui.showPreview(model)) {
+            switch (choice) {
                 case PreviewChoice.Cancel cancel -> {
                     ui.showStatus("Closed without doing anything.");
                     return false;
@@ -194,6 +197,7 @@ public class ScanWorkflow {
                     if (content instanceof UrlContent url) {
                         model = model.withRedirect(redirectResolver.resolve(url.url()));
                     }
+                    choice = ui.updatePreview(model);
                 }
             }
         }

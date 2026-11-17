@@ -41,6 +41,12 @@ public interface UiGateway {
     /** Shows the preview window and WAITS until the user clicks a button or closes it. */
     PreviewChoice showPreview(PreviewModel model);
 
+    /**
+     * Shows a new model in the preview that is still open (after "Check where this goes")
+     * and WAITS for the user's next choice. Returns Cancel if the user closed the preview meanwhile.
+     */
+    PreviewChoice updatePreview(PreviewModel model);
+
     /** Closes the overlay and the preview if open. Used by the workflow's safety net; never throws. */
     void closeScanWindows();
 }

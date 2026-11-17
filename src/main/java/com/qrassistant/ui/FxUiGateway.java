@@ -80,6 +80,12 @@ public class FxUiGateway implements UiGateway {
     }
 
     @Override
+    public PreviewChoice updatePreview(PreviewModel model) {
+        CompletableFuture<PreviewChoice> pending = callOnFx(() -> PreviewWindow.update(model));
+        return waitForUser(pending);
+    }
+
+    @Override
     public void closeScanWindows() {
         // Fire-and-forget: we don't wait, so this can't get stuck even if the UI is in trouble.
         Platform.runLater(() -> {
