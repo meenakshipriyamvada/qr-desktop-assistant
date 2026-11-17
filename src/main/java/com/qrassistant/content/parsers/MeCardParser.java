@@ -23,13 +23,13 @@ public class MeCardParser implements ContentParser {
         if (!trimmed.toLowerCase(Locale.ROOT).startsWith(PREFIX)) {
             return Optional.empty();
         }
-        Map<String, List<String>> fields = com.qrassistant.content.parsers.SemicolonFields.parse(trimmed.substring(PREFIX.length()));
+        Map<String, List<String>> fields = SemicolonFields.parse(trimmed.substring(PREFIX.length()));
         return Optional.of(new ContactContent(text,
-                readableName(com.qrassistant.content.parsers.SemicolonFields.first(fields, "N")),
-                com.qrassistant.content.parsers.SemicolonFields.first(fields, "ORG").strip(),
-                com.qrassistant.content.parsers.SemicolonFields.all(fields, "TEL"),
-                com.qrassistant.content.parsers.SemicolonFields.all(fields, "EMAIL"),
-                com.qrassistant.content.parsers.SemicolonFields.all(fields, "URL")));
+                readableName(SemicolonFields.first(fields, "N")),
+                SemicolonFields.first(fields, "ORG").strip(),
+                SemicolonFields.all(fields, "TEL"),
+                SemicolonFields.all(fields, "EMAIL"),
+                SemicolonFields.all(fields, "URL")));
     }
 
     /** MeCard names are "Last,First" -> "First Last". A name without a comma is kept as it is. */

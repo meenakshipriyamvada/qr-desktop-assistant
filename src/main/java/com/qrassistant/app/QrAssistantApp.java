@@ -59,6 +59,8 @@ public class QrAssistantApp extends Application {
                 new ZxingQrScanner(),
                 new ContentRecognizer(),
                 new UrlSafetyChecker());
+
+        mainWindow.show();
     }
 
     private void onScanFileRequested() {

@@ -43,11 +43,10 @@ public interface UiGateway {
     /** Closes the overlay if one is open. Used by the workflow's safety net; never throws. */
     void closeOverlay();
 
-    /** TEMPORARY (until step 10): shows the chosen code's text in a simple dialog. */
-    /** TEMPORARY (until step 10): shows what the chosen code was recognized as. */
     /**
      * TEMPORARY (until step 10): shows what the chosen code was recognized as.
      *
      * @param report the URL checks, or null if the content isn't a URL
      */
-    void showResultDebug(QrContent content, UrlReport report);}
+    void showResultDebug(QrContent content, UrlReport report);
+}

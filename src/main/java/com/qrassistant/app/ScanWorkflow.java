@@ -138,8 +138,6 @@ public class ScanWorkflow {
                 .toList();
     }
 
-    /** One code has been chosen. TEMPORARY: steps 7-11 replace this with recognition + preview. */
-    /** One code has been chosen: work out what it is. (Steps 9-11 add URL checks + the real preview.) */
     /** One code has been chosen: work out what it is, and check it if it's a URL. */
     private void useCode(DecodedQr code) {
         QrContent content = contentRecognizer.recognize(code.text());

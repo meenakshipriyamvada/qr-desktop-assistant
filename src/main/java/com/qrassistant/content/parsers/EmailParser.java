@@ -37,11 +37,11 @@ public class EmailParser implements ContentParser {
             return Optional.of(parseMailto(text, trimmed.substring(MAILTO.length())));
         }
         if (lower.startsWith(MATMSG)) {
-            Map<String, List<String>> fields = com.qrassistant.content.parsers.SemicolonFields.parse(trimmed.substring(MATMSG.length()));
+            Map<String, List<String>> fields = SemicolonFields.parse(trimmed.substring(MATMSG.length()));
             return Optional.of(new EmailContent(text,
-                    com.qrassistant.content.parsers.SemicolonFields.first(fields, "TO").strip(),
-                    com.qrassistant.content.parsers.SemicolonFields.first(fields, "SUB"),
-                    com.qrassistant.content.parsers.SemicolonFields.first(fields, "BODY")));
+                    SemicolonFields.first(fields, "TO").strip(),
+                    SemicolonFields.first(fields, "SUB"),
+                    SemicolonFields.first(fields, "BODY")));
         }
         if (PLAIN_ADDRESS.matcher(trimmed).matches()) {
             return Optional.of(new EmailContent(text, trimmed, "", ""));

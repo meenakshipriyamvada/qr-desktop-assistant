@@ -24,20 +24,20 @@ public class WifiParser implements ContentParser {
         if (!trimmed.toLowerCase(Locale.ROOT).startsWith(PREFIX)) {
             return Optional.empty();
         }
-        Map<String, List<String>> fields = com.qrassistant.content.parsers.SemicolonFields.parse(trimmed.substring(PREFIX.length()));
+        Map<String, List<String>> fields = SemicolonFields.parse(trimmed.substring(PREFIX.length()));
 
-        String networkName = com.qrassistant.content.parsers.SemicolonFields.first(fields, "S");
+        String networkName = SemicolonFields.first(fields, "S");
         if (networkName.isEmpty()) {
             return Optional.empty();   // a Wi-Fi code without a network name is useless -> plain text
         }
-        String security = com.qrassistant.content.parsers.SemicolonFields.first(fields, "T").strip();
+        String security = SemicolonFields.first(fields, "T").strip();
         if (security.equalsIgnoreCase("nopass")) {
             security = "nopass";
         } else {
             security = security.toUpperCase(Locale.ROOT);
         }
-        String password = com.qrassistant.content.parsers.SemicolonFields.first(fields, "P");
-        boolean hidden = com.qrassistant.content.parsers.SemicolonFields.first(fields, "H").strip().equalsIgnoreCase("true");
+        String password = SemicolonFields.first(fields, "P");
+        boolean hidden = SemicolonFields.first(fields, "H").strip().equalsIgnoreCase("true");
 
         return Optional.of(new WifiContent(text, networkName, security, password, hidden));
     }
