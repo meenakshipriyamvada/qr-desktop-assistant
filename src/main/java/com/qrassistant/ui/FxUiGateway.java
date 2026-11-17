@@ -1,11 +1,8 @@
 package com.qrassistant.ui;
 
 import com.qrassistant.capture.CapturedScreen;
-import com.qrassistant.content.QrContent;
 import com.qrassistant.scan.DecodedQr;
-import com.qrassistant.system.ClipboardService;
 import javafx.application.Platform;
-import com.qrassistant.urlcheck.UrlReport;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -19,14 +16,12 @@ import java.util.concurrent.ExecutionException;
 public class FxUiGateway implements UiGateway {
 
     private final MainWindow mainWindow;
-    private final ClipboardService clipboard;   // TEMPORARY use: the test dialog's Copy button
 
     /** Was the main window open when hideAppWindows() was called? Only touched on the FX thread. */
     private boolean mainWindowWasShowing;
 
-    public FxUiGateway(MainWindow mainWindow, ClipboardService clipboard) {
+    public FxUiGateway(MainWindow mainWindow) {
         this.mainWindow = mainWindow;
-        this.clipboard = clipboard;
     }
 
     @Override
@@ -74,27 +69,37 @@ public class FxUiGateway implements UiGateway {
                 callOnFx(() -> SelectionOverlay.open(captured, codes, mode));
 
         // Step 2 (here, on the worker): wait until the user has picked, dragged or cancelled.
+        return waitForUser(pending);
+    }
+
+    @Override
+    public PreviewChoice showPreview(PreviewModel model) {
+        // Same two steps as the overlay: open on the FX thread, then wait here for the click.
+        CompletableFuture<PreviewChoice> pending = callOnFx(() -> PreviewWindow.open(model));
+        return waitForUser(pending);
+    }
+
+    @Override
+    public void closeScanWindows() {
+        // Fire-and-forget: we don't wait, so this can't get stuck even if the UI is in trouble.
+        Platform.runLater(() -> {
+            SelectionOverlay.closeAny();
+            PreviewWindow.closeAny();
+        });
+    }
+
+    /** Waits (on the worker) for a window to report what the user did. On failure, closes our windows. */
+    private <T> T waitForUser(CompletableFuture<T> pending) {
         try {
             return pending.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            closeOverlay();
-            throw new IllegalStateException("Interrupted while waiting for the overlay", e);
+            closeScanWindows();
+            throw new IllegalStateException("Interrupted while waiting for the user", e);
         } catch (ExecutionException e) {
-            closeOverlay();
-            throw new IllegalStateException("Overlay failed", e.getCause());
+            closeScanWindows();
+            throw new IllegalStateException("Window failed", e.getCause());
         }
-    }
-
-    @Override
-    public void closeOverlay() {
-        // Fire-and-forget: we don't wait, so this can't get stuck even if the UI is in trouble.
-        Platform.runLater(SelectionOverlay::closeAny);
-    }
-
-    @Override
-    public void showResultDebug(QrContent content, UrlReport report) {
-        runOnFx(() -> ResultDebugDialog.show(content, report, clipboard));
     }
 
     // --- Thread hopping ---

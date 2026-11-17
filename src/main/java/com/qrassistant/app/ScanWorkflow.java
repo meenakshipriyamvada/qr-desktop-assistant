@@ -1,4 +1,6 @@
 package com.qrassistant.app;
+import com.qrassistant.action.Action;
+import com.qrassistant.action.ActionManager;
 import com.qrassistant.content.ContentRecognizer;
 import com.qrassistant.content.QrContent;
 import com.qrassistant.capture.CapturedScreen;
@@ -8,11 +10,14 @@ import com.qrassistant.scan.DecodedQr;
 import com.qrassistant.scan.QrScanner;
 import com.qrassistant.ui.OverlayMode;
 import com.qrassistant.ui.OverlayResult;
+import com.qrassistant.ui.PreviewChoice;
+import com.qrassistant.ui.PreviewModel;
 import com.qrassistant.ui.UiGateway;
 import com.qrassistant.content.UrlContent;
 import com.qrassistant.urlcheck.UrlReport;
 import com.qrassistant.urlcheck.UrlSafetyChecker;
 import java.awt.Rectangle;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,6 +44,7 @@ public class ScanWorkflow {
     private final QrScanner qrScanner;
     private final ContentRecognizer contentRecognizer;
     private final UrlSafetyChecker urlSafetyChecker;
+    private final ActionManager actionManager;
     /** One worker thread. "Daemon" = it never keeps the program alive on its own. */
     private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "scan-worker");
@@ -50,12 +56,14 @@ public class ScanWorkflow {
     private final AtomicBoolean scanInProgress = new AtomicBoolean(false);
 
     public ScanWorkflow(UiGateway ui, ScreenCapturer screenCapturer, QrScanner qrScanner,
-                        ContentRecognizer contentRecognizer, UrlSafetyChecker urlSafetyChecker) {
+                        ContentRecognizer contentRecognizer, UrlSafetyChecker urlSafetyChecker,
+                        ActionManager actionManager) {
         this.ui = ui;
         this.screenCapturer = screenCapturer;
         this.qrScanner = qrScanner;
         this.contentRecognizer = contentRecognizer;
         this.urlSafetyChecker = urlSafetyChecker;
+        this.actionManager = actionManager;
     }
     // --- Entry points: may be called from ANY thread; they only hand the job to the worker ---
 
@@ -85,33 +93,31 @@ public class ScanWorkflow {
         CapturedScreen captured = screenCapturer.captureMonitorUnderMouse();
         List<DecodedQr> codes = qrScanner.scan(captured.image());
 
-        if (codes.size() == 1) {
-            useCode(codes.get(0));                            // exactly one: no questions asked
-        } else if (codes.isEmpty()) {
-            chooseOnScreen(captured, codes, OverlayMode.DRAW);  // none: ask for a box
-        } else {
-            chooseOnScreen(captured, codes, OverlayMode.PICK);  // several: let the user click one
+        // Exactly one code: straight to the preview. Unless the user says "Not this one", we're done.
+        if (codes.size() == 1 && !previewWantsSelectArea(codes.get(0))) {
+            return;
         }
+        chooseOnScreen(captured, codes);   // none, several, or "Not this one? Select area"
     }
 
     /**
-     * Shows the overlay until the user ends up with exactly one code, or cancels.
-     * Drawing a box re-scans just that area; depending on what's in it we finish,
+     * Shows the overlay until the user has seen a preview and is done with it, or cancels.
+     * Drawing a box re-scans just that area; depending on what's in it we preview it,
      * show the codes found inside it, or ask for a new box.
+     *
+     * @param allCodes every code found on the whole screen; outlined again after "Select area"
      */
-    private void chooseOnScreen(CapturedScreen captured, List<DecodedQr> codes, OverlayMode mode) {
-        List<DecodedQr> shown = codes;
-        OverlayMode currentMode = mode;
+    private void chooseOnScreen(CapturedScreen captured, List<DecodedQr> allCodes) {
+        List<DecodedQr> shown = allCodes;
+        OverlayMode currentMode = allCodes.isEmpty() ? OverlayMode.DRAW : OverlayMode.PICK;
 
         while (true) {
             OverlayResult outcome = ui.showOverlay(captured, shown, currentMode);
+            DecodedQr chosen = null;
 
             // A "switch" over a sealed interface: the compiler checks that all three cases are handled.
             switch (outcome) {
-                case OverlayResult.Picked picked -> {
-                    useCode(picked.qr());
-                    return;
-                }
+                case OverlayResult.Picked picked -> chosen = picked.qr();
                 case OverlayResult.Cancelled cancelled -> {
                     ui.showStatus("Scan cancelled.");
                     return;
@@ -119,13 +125,22 @@ public class ScanWorkflow {
                 case OverlayResult.Region region -> {
                     List<DecodedQr> inBox = scanArea(captured, region.area());
                     if (inBox.size() == 1) {
-                        useCode(inBox.get(0));
-                        return;
+                        chosen = inBox.get(0);
+                    } else {
+                        // None in the box: ask again. Several: outline just those and let the user click.
+                        shown = inBox;
+                        currentMode = inBox.isEmpty() ? OverlayMode.DRAW_AGAIN : OverlayMode.PICK;
                     }
-                    // None in the box: ask again. Several: outline just those and let the user click.
-                    shown = inBox;
-                    currentMode = inBox.isEmpty() ? OverlayMode.DRAW_AGAIN : OverlayMode.PICK;
                 }
+            }
+
+            if (chosen != null) {
+                if (!previewWantsSelectArea(chosen)) {
+                    return;
+                }
+                // "Not this one": back to the overlay, with everything found on the screen outlined.
+                shown = allCodes;
+                currentMode = allCodes.isEmpty() ? OverlayMode.DRAW : OverlayMode.PICK;
             }
         }
     }
@@ -138,8 +153,13 @@ public class ScanWorkflow {
                 .toList();
     }
 
-    /** One code has been chosen: work out what it is, and check it if it's a URL. */
-    private void useCode(DecodedQr code) {
+    /**
+     * One code has been chosen: work out what it is, check it if it's a URL, show the preview,
+     * and do whatever the user picks there.
+     *
+     * @return true if the user clicked "Not this one? Select area"
+     */
+    private boolean previewWantsSelectArea(DecodedQr code) {
         QrContent content = contentRecognizer.recognize(code.text());
 
         // URL checks only apply to URLs. They're offline and fast, so they run right here.
@@ -148,9 +168,21 @@ public class ScanWorkflow {
             report = urlSafetyChecker.check(url.url());
         }
 
-        ui.restoreAppWindows();
-        ui.showStatus("QR code chosen.");
-        ui.showResultDebug(content, report);   // TEMPORARY until step 10
+        List<Action> actions = actionManager.actionsFor(content);
+        PreviewModel model = PreviewModel.build(content, report, actions, true, ZoneId.systemDefault());
+
+        return switch (ui.showPreview(model)) {
+            case PreviewChoice.Cancel cancel -> {
+                ui.showStatus("Closed without doing anything.");
+                yield false;
+            }
+            case PreviewChoice.SelectArea selectArea -> true;
+            case PreviewChoice.RunAction run -> {
+                // Runs here on the worker, and only because the user clicked it. (Security rule 3)
+                ui.showStatus(run.action().run());
+                yield false;
+            }
+        };
     }
 
     // --- The single safety net (A6) ---
@@ -176,7 +208,7 @@ public class ScanWorkflow {
             LOG.warning("Scan failed: " + e.getClass().getName());
             showProblemSafely("Something went wrong (" + e.getClass().getSimpleName() + ").");
         } finally {
-            closeOverlaySafely();        // the overlay must never stay stuck on screen (I1)
+            closeScanWindowsSafely();    // the overlay must never stay stuck on screen (I1)
             restoreWindowsSafely();
             scanInProgress.set(false);   // always, so the next scan can start
         }
@@ -192,11 +224,11 @@ public class ScanWorkflow {
         }
     }
 
-    private void closeOverlaySafely() {
+    private void closeScanWindowsSafely() {
         try {
-            ui.closeOverlay();
+            ui.closeScanWindows();
         } catch (RuntimeException e) {
-            LOG.warning("Could not close overlay: " + e.getClass().getName());
+            LOG.warning("Could not close scan windows: " + e.getClass().getName());
         }
     }
 

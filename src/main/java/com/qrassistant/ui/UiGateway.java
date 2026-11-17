@@ -2,9 +2,7 @@ package com.qrassistant.ui;
 
 import com.qrassistant.capture.CapturedScreen;
 import com.qrassistant.scan.DecodedQr;
-import com.qrassistant.content.QrContent;
 import java.util.List;
-import com.qrassistant.urlcheck.UrlReport;
 /**
  * Everything the scan workflow needs from the user interface.
  *
@@ -14,7 +12,7 @@ import com.qrassistant.urlcheck.UrlReport;
  *    so the workflow's code runs in a simple top-to-bottom order.
  *
  * Because this is an interface, tests can use a fake UI that needs no windows.
- * More methods are added in later steps (chooser, preview).
+ * More methods are added in later steps (file chooser, redirect results).
  */
 public interface UiGateway {
 
@@ -40,13 +38,9 @@ public interface UiGateway {
      */
     OverlayResult showOverlay(CapturedScreen captured, List<DecodedQr> codes, OverlayMode mode);
 
-    /** Closes the overlay if one is open. Used by the workflow's safety net; never throws. */
-    void closeOverlay();
+    /** Shows the preview window and WAITS until the user clicks a button or closes it. */
+    PreviewChoice showPreview(PreviewModel model);
 
-    /**
-     * TEMPORARY (until step 10): shows what the chosen code was recognized as.
-     *
-     * @param report the URL checks, or null if the content isn't a URL
-     */
-    void showResultDebug(QrContent content, UrlReport report);
+    /** Closes the overlay and the preview if open. Used by the workflow's safety net; never throws. */
+    void closeScanWindows();
 }

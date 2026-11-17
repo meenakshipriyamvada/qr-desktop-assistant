@@ -1,9 +1,10 @@
 package com.qrassistant.app;
-import com.qrassistant.system.ClipboardService;
+import com.qrassistant.action.ActionManager;
 import com.qrassistant.capture.ScreenCapturer;
 import com.qrassistant.scan.ZxingQrScanner;
 import com.qrassistant.ui.FxUiGateway;
 import com.qrassistant.ui.MainWindow;
+import com.qrassistant.ui.PreviewWindow;
 import com.qrassistant.ui.SelectionOverlay;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -40,6 +41,7 @@ public class QrAssistantApp extends Application {
         // never its message (which could contain QR text). (X8)
         Thread.currentThread().setUncaughtExceptionHandler((thread, error) -> {
             SelectionOverlay.closeAny();
+            PreviewWindow.closeAny();
             StackTraceElement[] trace = error.getStackTrace();
             LOG.severe("Unexpected UI error: " + error.getClass().getName()
                     + (trace.length > 0 ? " at " + trace[0] : ""));
@@ -54,11 +56,12 @@ public class QrAssistantApp extends Application {
                 this::quit);
 
         workflow = new ScanWorkflow(
-                new FxUiGateway(mainWindow, new ClipboardService()),
+                new FxUiGateway(mainWindow),
                 new ScreenCapturer(),
                 new ZxingQrScanner(),
                 new ContentRecognizer(),
-                new UrlSafetyChecker());
+                new UrlSafetyChecker(),
+                new ActionManager(new ClipboardService()));
 
         mainWindow.show();
     }
